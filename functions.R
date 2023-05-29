@@ -1,6 +1,9 @@
 
 get_standings_colors <- function(conf) {
-  df <- read_excel(paste0("data/standing_",conf,"_byday.xlsx")) %>% 
+  # df <- fread(paste0("https://raw.githubusercontent.com/BalintParragi/shiny_app/main/data/standing_",conf,"_byday.csv"),
+  #                    encoding = "UTF-8") %>% 
+  df <- fread(paste0("data/standing_",conf,"_byday.csv"),
+              encoding = "UTF-8") %>% 
     mutate(conference = conf) %>% 
     filter(season<=2019)
   df <- df %>% 
@@ -138,16 +141,6 @@ get_data_by_slider_and_ticker  <- function(ticker, slider,conf) {
   
 }
 
-
-render_df_with_buttons <- function(my_data) {
-  return(DT::datatable(my_data,extensions = c('Buttons','FixedHeader'),filter = 'top', class = 'cell-border stripe',
-                       rownames = FALSE,
-                       options = list(dom = 'Blfrtip',scrollX = TRUE, fixedHeader = TRUE,
-                                      pageLength = 15,lengthMenu = c(5, 10, 15),
-                                      buttons = c('copy', 'csv', 'excel', 'pdf', 'print'))))
-  
-}
-
 render_df_with_all_download_buttons <- function(my_data) {
   return(DT::datatable(my_data,extensions = c('Buttons','FixedHeader'),filter = 'top', class = 'cell-border stripe',
                        rownames= FALSE,
@@ -158,7 +151,6 @@ render_df_with_all_download_buttons <- function(my_data) {
                        )))
   
 }
-
 
 get_plot_of_data <- function(data){
   tryCatch({
@@ -193,6 +185,55 @@ get_plot_of_data <- function(data){
   },error=function(x){
     return(plotly_empty())
     })
+  
+  
+}
+
+get_data_by_ticker_dg  <- function(ticker,conf) {
+  
+  tryCatch({
+    my_data <- get_standings_colors(conf)
+    my_data <- my_data %>% 
+      filter(team == ticker) %>% 
+      group_by(season) %>% 
+      filter(row_number()==n()) %>% 
+      select(season,seed,team,color1)
+    
+    if(nrow(my_data[complete.cases(my_data)==F,])> 0)  {
+      my_data <- my_data[complete.cases(my_data),]
+      if(nrow(my_data)==0){
+        text<- paste0('Error: ', my_ticker, ' # problem: empty dataframe ', ' time: ', Sys.time())
+        stop(text)
+      }
+    }
+    return(my_data)
+  }, error=function(x) {
+    print(x)
+    return(data.table())
+  })
+  
+}
+
+get_dg_of_data <- function(data){
+  tryCatch({
+    team <- unique(data$team)
+    color1 <- unique(data$color1)
+    data <- data %>% select(-team,-color1)
+    dygraph_obj <- dygraph(data,main = team) %>%
+      dyRangeSelector(height = 20) %>%
+      dyAxis("y", valueRange = c(15,0)) %>% 
+      dySeries("seed", label = "Seed",color = color1,pointSize = 7,strokeWidth = 3.5) %>%
+      dyLimit(8.5, "Playoff qualification",
+              strokePattern = "dotted", color = "red") %>% 
+      dyHighlight(highlightCircleSize = 3,
+                  highlightSeriesBackgroundAlpha = 0.5, highlightSeriesOpts = list(),
+                  hideOnMouseOut = TRUE) %>% 
+      dyOptions(axisLabelFontSize = 18,axisTickSize = 12)
+    return(dygraph_obj)
+    
+  },error=function(x){
+    return("Not sufficient data")
+  })
   
   
 }
